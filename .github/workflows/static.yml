@@ -1,0 +1,49 @@
+import https from 'https';
+import xml2js from 'xml2js';
+
+export default function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
+
+  const {
+    sCepOrigem, sCepDestino, nVlPeso,
+    nCdFormato, nVlComprimento, nVlAltura, nVlLargura, nCdServico
+  } = req.query;
+
+  const params = [
+    `nCdEmpresa=`,
+    `sDsSenha=`,
+    `sCepOrigem=${sCepOrigem}`,
+    `sCepDestino=${sCepDestino}`,
+    `nVlPeso=${nVlPeso}`,
+    `nCdFormato=${nCdFormato}`,
+    `nVlComprimento=${nVlComprimento}`,
+    `nVlAltura=${nVlAltura}`,
+    `nVlLargura=${nVlLargura}`,
+    `nVlDiametro=0`,
+    `sCdMaoPropria=N`,
+    `nVlValorDeclarado=0`,
+    `sCdAvisoRecebimento=N`,
+    `nCdServico=${nCdServico}`,
+    `StrRetorno=xml`
+  ].join('&');
+
+  const url = `https://ws.correios.com.br/calculador/CalcPrecoPrazo.asmx/CalcPrecoPrazo?${params}`;
+
+  https.get(url, resp => {
+    let data = '';
+    resp.on('data', chunk => data += chunk);
+    resp.on('end', () => {
+      xml2js.parseString(data, { explicitArray: false }, (err, result) => {
+        if (err) return res.status(500).json({ error: 'Erro ao parsear XML' });
+        const servicos = result.Servicos.cServico;
+        res.json({ servicos: Array.isArray(servicos) ? servicos : [servicos] });
+      });
+    });
+  }).on('error', err => {
+    res.status(500).json({ error: 'Erro na chamada aos Correios', details: err.message });
+  });
+}
